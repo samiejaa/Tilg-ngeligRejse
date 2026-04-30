@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Reparatør-backend – log elevatornedbrud og administrér brugerrapporter." />
+  <title>Admin – TilgængeligRejse</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="gcal.js" defer></script>
+</head>
+<body>
+
+  <a class="skip-link" href="#admin-main">Spring til indhold</a>
+
+  <!-- HEADER -->
+  <header class="admin-header" role="banner">
+    <div class="header-inner">
+      <a href="index.html" class="site-logo" aria-label="Tilbage til forsiden">
+        <span class="logo-icon" aria-hidden="true">♿</span>
+        <span>
+          <span class="logo-name">TilgængeligRejse</span>
+          <span class="logo-sub">Reparatør-panel</span>
+        </span>
+      </a>
+      <div class="header-actions" id="header-actions">
+        <a href="index.html" class="btn-admin-link">← Tilbage til forsiden</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="admin-main" id="admin-main">
+
+    <!-- ===== LOGIN FORM ===== -->
+    <div class="admin-login login-form visible" id="login-section" aria-labelledby="login-heading">
+      <h2 id="login-heading">🔐 Log ind</h2>
+      <p>Dette område er kun for autoriserede reparatører og administratorer.</p>
+
+      <form id="login-form" novalidate>
+        <div class="form-group">
+          <label for="login-user">Brugernavn</label>
+          <input
+            type="text"
+            id="login-user"
+            name="username"
+            placeholder="Dit brugernavn"
+            autocomplete="username"
+            required
+            aria-required="true"
+          />
+        </div>
+        <div class="form-group">
+          <label for="login-pass">Adgangskode</label>
+          <input
+            type="password"
+            id="login-pass"
+            name="password"
+            placeholder="Din adgangskode"
+            autocomplete="current-password"
+            required
+            aria-required="true"
+          />
+        </div>
+        <div id="login-error" role="alert" style="color: var(--color-danger); font-size:0.88rem; margin-bottom:0.75rem; display:none;">
+          ❌ Forkert brugernavn eller adgangskode.
+        </div>
+        <button type="submit" class="btn-primary" style="width:100%; justify-content:center;">
+          Log ind
+        </button>
+      </form>
+
+      <p style="margin-top:1rem; font-size:0.8rem; color:var(--color-text-muted); text-align:center;">
+        <!-- TODO: Tilslut rigtigt autentificeringssystem (f.eks. Firebase Auth, OAuth) -->
+        Demo: brug <strong>admin</strong> / <strong>1234</strong>
+      </p>
+    </div>
+
+    <!-- ===== ADMIN PANEL (hidden until logged in) ===== -->
+    <div class="admin-panel" id="admin-panel" aria-label="Administratorpanel">
+
+      <!-- Velkomst -->
+      <div style="margin-bottom:1.5rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem;">
+        <div>
+          <h1 style="font-family:var(--font-main); font-size:1.4rem; font-weight:700; color:var(--color-primary-dark);">
+            Goddag, <span id="welcome-name">Admin</span> 👋
+          </h1>
+          <p style="color:var(--color-text-muted); font-size:0.9rem;">Administrér elevatorstatus og gennemgå brugerrapporter.</p>
+        </div>
+        <button class="btn-logout" id="logout-btn" aria-label="Log ud af admin-panel">
+          Log ud
+        </button>
+      </div>
+
+      <!-- ===== SEKTION 1: Tilføj nyt nedbrud ===== -->
+      <div class="admin-card" aria-labelledby="add-outage-heading">
+        <h2 id="add-outage-heading">➕ Registrér elevatornedbrud</h2>
+        <p>Udfyld formularen for at markere en elevator som ude af drift.</p>
+
+        <form id="add-outage-form" novalidate>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+            <div class="form-group">
+              <label for="outage-station">Station *</label>
+              <input
+                type="text"
+                id="outage-station"
+                placeholder="F.eks. Odense"
+                required
+                aria-required="true"
+                list="station-list"
+              />
+              <!-- TODO: Hent stationer fra Rejseplan API -->
+              <datalist id="station-list">
+                <option value="København H">
+                <option value="Nørreport">
+                <option value="Østerport">
+                <option value="Hellerup">
+                <option value="Odense">
+                <option value="Fredericia">
+                <option value="Vejle">
+                <option value="Kolding">
+                <option value="Aarhus H">
+                <option value="Aalborg">
+              </datalist>
+            </div>
+            <div class="form-group">
+              <label for="outage-location">Placering</label>
+              <input
+                type="text"
+                id="outage-location"
+                placeholder="F.eks. Perron 2 → Gadeplan"
+              />
+            </div>
+            <div class="form-group">
+              <label for="outage-eta">Forventet repareret (valgfrit)</label>
+              <input
+                type="date"
+                id="outage-eta"
+                aria-label="Forventet reparationsdato"
+              />
+            </div>
+            <div class="form-group">
+              <label for="outage-reported">Meldt (dato)</label>
+              <input
+                type="date"
+                id="outage-reported"
+                aria-label="Dato for nedbruddet"
+              />
+            </div>
+            <div class="form-group" style="grid-column:1/-1;">
+              <label for="outage-note">Note / alternativ rute (valgfrit)</label>
+              <textarea
+                id="outage-note"
+                placeholder="F.eks. Brug nordlig indgang. Alternativ elevator i drift ved perron 4."
+              ></textarea>
+            </div>
+          </div>
+          <button type="submit" class="btn-primary">
+            🔴 Registrér nedbrud
+          </button>
+        </form>
+      </div>
+
+      <!-- ===== SEKTION 2: Aktive nedbrud ===== -->
+      <div class="admin-card" aria-labelledby="active-outages-heading">
+        <h2 id="active-outages-heading">🛗 Aktive elevatorer &amp; nedbrud</h2>
+        <p>Klik "Markér repareret" når en elevator er i drift igen.</p>
+        <div class="elevator-list-admin" id="elevator-list-admin" role="list" aria-label="Oversigt over elevatorer">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- ===== SEKTION 3: Brugerrapporter ===== -->
+      <div class="admin-card" aria-labelledby="user-reports-heading">
+        <h2 id="user-reports-heading">📩 Bruger-indberetninger</h2>
+        <p>Rapporter sendt af brugere. Godkend dem som officielle, eller slet dem.</p>
+        <div class="user-reports-list" id="user-reports-list" role="list" aria-label="Bruger-indberetninger">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- ===== SEKTION 4: Google Calendar ===== -->
+      <div class="admin-card" aria-labelledby="calendar-heading">
+        <h2 id="calendar-heading">📅 Google Calendar</h2>
+        <p>Log ind med Google for at synkronisere reparationer og rutine-tjek med din kalender.</p>
+
+        <!-- Login/logout knap -->
+        <div id="gcal-auth-section" style="margin-bottom:1.25rem;">
+          <button class="btn-primary" id="gcal-login-btn" onclick="handleGcalLogin()">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+              style="width:18px; height:18px; vertical-align:middle; margin-right:4px;" alt="" />
+            Log ind med Google
+          </button>
+          <div id="gcal-logged-in" style="display:none;">
+            <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
+              <span style="color:var(--color-success); font-weight:700;">✅ Forbundet til Google Calendar</span>
+              <span id="gcal-calendar-name" style="font-size:0.85rem; color:var(--color-text-muted);"></span>
+              <button class="btn-cancel" onclick="handleGcalLogout()">Log ud af Google</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Rutine-tjek sektion -->
+        <div id="gcal-routine-section" style="display:none;">
+          <h3 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem; color:var(--color-primary-dark);">
+            🔧 Planlæg rutine-tjek
+          </h3>
+          <p style="font-size:0.88rem; color:var(--color-text-muted); margin-bottom:1rem;">
+            Rutine-tjek vises automatisk på forsiden så brugere ved hvornår en elevator kan være midlertidigt ude af drift.
+          </p>
+          <form id="routine-check-form" style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+            <div class="form-group">
+              <label for="routine-station">Station</label>
+              <select id="routine-station" aria-label="Vælg station til rutine-tjek">
+                <option value="">– Vælg elevator –</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="routine-date">Dato for tjek</label>
+              <input type="date" id="routine-date" aria-label="Dato for rutine-tjek" />
+            </div>
+            <div class="form-group" style="grid-column:1/-1;">
+              <label for="routine-note">Note til brugere (valgfrit)</label>
+              <input type="text" id="routine-note" placeholder="F.eks. Tekniker fra KONE – forventet 2 timers nedetid" />
+            </div>
+            <div style="grid-column:1/-1;">
+              <button type="submit" class="btn-primary" style="font-size:0.9rem;">
+                📅 Opret rutine-tjek i kalender
+              </button>
+            </div>
+          </form>
+
+          <!-- Kommende rutine-tjek -->
+          <div style="margin-top:1.5rem;">
+            <h3 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem; color:var(--color-primary-dark);">
+              📋 Kommende rutine-tjek
+            </h3>
+            <div id="routine-checks-list">
+              <div class="empty-state"><div class="empty-icon">📭</div><p>Ingen planlagte rutine-tjek.</p></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /admin-panel -->
+
+  </main>
+
+  <footer class="site-footer" role="contentinfo">
+    <p>TilgængeligRejse Admin &copy; 2025 · Kun for autoriserede reparatører og administratorer.</p>
+  </footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <script>
+    /* ==============================================
+       DELT DATA (synkroniseret med index.html via localStorage)
+       TODO: Udskift localStorage med rigtig database/API
+    ============================================== */
+    function loadData() {
+      elevatorData = JSON.parse(localStorage.getItem('elevatorData') || 'null') || getDefaultElevators();
+      userReports = JSON.parse(localStorage.getItem('userReports') || '[]');
+    }
+
+    function saveData() {
+      localStorage.setItem('elevatorData', JSON.stringify(elevatorData));
+      localStorage.setItem('userReports', JSON.stringify(userReports));
+    }
+
+    function getDefaultElevators() {
+      return [
+        { id: 'elev-001', station: 'København H', location: 'Perron 1-2 → Gadeplan', status: 'ok', etaRepair: null, note: null, isUserReport: false, reportedAt: null },
+        { id: 'elev-002', station: 'Nørreport', location: 'Sydlig indgang → Metro-niveau', status: 'down', etaRepair: '2025-09-04', note: 'Planlagt vedligehold. Brug nordlig indgang.', isUserReport: false, reportedAt: '2025-08-28' },
+        { id: 'elev-003', station: 'Aarhus H', location: 'Perron 3 → Gadeplan', status: 'ok', etaRepair: null, note: null, isUserReport: false, reportedAt: null },
+        { id: 'elev-004', station: 'Odense', location: 'Hovedindgang', status: 'down', etaRepair: '2025-09-10', note: null, isUserReport: false, reportedAt: '2025-08-30' },
+        { id: 'elev-005', station: 'Fredericia', location: 'Perron 2', status: 'ok', etaRepair: null, note: null, isUserReport: false, reportedAt: null },
+        { id: 'elev-006', station: 'Vejle', location: 'Underføring → Perron 1', status: 'ok', etaRepair: null, note: null, isUserReport: false, reportedAt: null }
+      ];
+    }
+
+    let elevatorData = [];
+    let userReports = [];
+    loadData();
+
+    /* ==============================================
+       AUTH
+       TODO: Udskift med rigtig autentificering
+       F.eks. Firebase Auth: firebase.auth().signInWithEmailAndPassword(email, pass)
+    ============================================== */
+    const DEMO_USERS = {
+      'admin': { password: '1234', name: 'Administrator' },
+      'reparator': { password: 'fix123', name: 'Reparatør' }
+    };
+
+    let currentUser = sessionStorage.getItem('adminUser') || null;
+
+    function login(username, password) {
+      // TODO: Replace with real auth API call
+      const user = DEMO_USERS[username.toLowerCase()];
+      if (user && user.password === password) {
+        currentUser = username;
+        sessionStorage.setItem('adminUser', username);
+        return user.name;
+      }
+      return null;
+    }
+
+    function logout() {
+      currentUser = null;
+      sessionStorage.removeItem('adminUser');
+      showLoginPanel();
+    }
+
+    function showLoginPanel() {
+      document.getElementById('login-section').classList.add('visible');
+      document.getElementById('admin-panel').classList.remove('visible');
+      document.getElementById('header-actions').innerHTML = `
+        <a href="index.html" class="btn-admin-link">← Tilbage til forsiden</a>
+      `;
+    }
+
+    function showAdminPanel(name) {
+      document.getElementById('login-section').classList.remove('visible');
+      document.getElementById('admin-panel').classList.add('visible');
+      document.getElementById('welcome-name').textContent = name ||
+        DEMO_USERS[currentUser]?.name || currentUser;
+      document.getElementById('header-actions').innerHTML = `
+        <a href="index.html" class="btn-admin-link">← Forsiden</a>
+        <button class="btn-logout" id="logout-btn" onclick="logout()">Log ud</button>
+      `;
+      renderAdminElevators();
+      renderUserReports();
+    }
+
+    // Auto-login if session active
+    if (currentUser && DEMO_USERS[currentUser]) {
+      showAdminPanel(DEMO_USERS[currentUser].name);
+    }
+
+    // Login form submit
+    document.getElementById('login-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const username = document.getElementById('login-user').value.trim();
+      const password = document.getElementById('login-pass').value;
+      const errEl = document.getElementById('login-error');
+
+      const name = login(username, password);
+      if (name) {
+        errEl.style.display = 'none';
+        showAdminPanel(name);
+      } else {
+        errEl.style.display = 'block';
+        document.getElementById('login-pass').value = '';
+        document.getElementById('login-pass').focus();
+      }
+    });
+
+    /* ==============================================
+       RENDER: ELEVATOR LIST
+    ============================================== */
+    function formatDate(dateStr) {
+      if (!dateStr) return null;
+      const d = new Date(dateStr);
+      return d.toLocaleDateString('da-DK', { day: 'numeric', month: 'long', year: 'numeric' });
+    }
+
+    function renderAdminElevators() {
+      const list = document.getElementById('elevator-list-admin');
+      if (elevatorData.length === 0) {
+        list.innerHTML = '<div class="empty-state"><div class="empty-icon">🛗</div><p>Ingen elevatorer registreret endnu.</p></div>';
+        return;
+      }
+
+      // Sort: down first
+      const sorted = [...elevatorData].sort((a, b) => {
+        if (a.status === 'down' && b.status !== 'down') return -1;
+        if (a.status !== 'down' && b.status === 'down') return 1;
+        return a.station.localeCompare(b.station);
+      });
+
+      list.innerHTML = sorted.map(e => `
+        <div class="admin-elevator-item ${e.status === 'down' ? 'status-down' : ''}" id="item-${e.id}" role="listitem" aria-label="${e.station}: ${e.status === 'down' ? 'ude af drift' : 'i drift'}">
+          <div class="admin-elevator-info">
+            <strong>${e.station}</strong>
+            <span>${e.location || '–'}</span>
+            ${e.status === 'down' ? `
+              <span style="color:var(--color-danger); font-size:0.82rem; font-weight:600; display:block; margin-top:0.2rem;">
+                🔴 Ude af drift${e.etaRepair ? ' · Est. repareret: ' + formatDate(e.etaRepair) : ' · Ingen estimeret dato'}
+              </span>` : `
+              <span style="color:var(--color-success); font-size:0.82rem; font-weight:600; display:block; margin-top:0.2rem;">🟢 I drift</span>`
+            }
+            ${e.note ? `<span style="font-size:0.8rem; color:var(--color-text-muted); font-style:italic;">${e.note}</span>` : ''}
+          </div>
+          <div class="admin-elevator-actions">
+            <button class="btn-edit" onclick="toggleEdit('${e.id}')" aria-label="Redigér oplysninger for ${e.station}" aria-expanded="false" id="edit-btn-${e.id}">
+              ✏️ Redigér
+            </button>
+            ${e.status === 'down'
+              ? `<button class="btn-success" onclick="markRepaired('${e.id}')" aria-label="Markér ${e.station} elevator som repareret">✅ Repareret</button>`
+              : `<button class="btn-danger" onclick="markDown('${e.id}')" aria-label="Markér ${e.station} elevator som ude af drift">🔴 Sæt ned</button>`
+            }
+            <button class="btn-danger" onclick="deleteElevator('${e.id}')" aria-label="Slet elevator for ${e.station}" style="background:var(--color-text-muted);">🗑️</button>
+          </div>
+
+          <!-- Inline edit panel (hidden by default) -->
+          <div class="edit-panel" id="edit-panel-${e.id}" style="display:none;" aria-label="Redigeringsformular for ${e.station}">
+            <div class="edit-panel-grid">
+              <div class="form-group">
+                <label for="edit-eta-${e.id}">Forventet repareret</label>
+                <input type="date" id="edit-eta-${e.id}" value="${e.etaRepair || ''}" aria-label="Ny reparationsdato" />
+              </div>
+              <div class="form-group">
+                <label for="edit-location-${e.id}">Placering</label>
+                <input type="text" id="edit-location-${e.id}" value="${e.location || ''}" placeholder="F.eks. Perron 2 → Gadeplan" />
+              </div>
+              <div class="form-group">
+                <label for="edit-time-${e.id}">Tidspunkt for reparatørbesøg</label>
+                <input type="time" id="edit-time-${e.id}" value="${e._calEventTime || '09:00'}" aria-label="Tidspunkt for reparatørbesøg" />
+              </div>
+              <div class="form-group edit-panel-full">
+                <label for="edit-note-${e.id}">Note / alternativ rute</label>
+                <textarea id="edit-note-${e.id}" placeholder="F.eks. Brug nordlig indgang">${e.note || ''}</textarea>
+              </div>
+            </div>
+            <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.5rem;">
+              <button class="btn-primary" style="font-size:0.88rem; padding:0.5rem 1rem;" onclick="saveEdit('${e.id}')" aria-label="Gem ændringer for ${e.station}">
+                💾 Gem ændringer
+              </button>
+              <button class="btn-cancel" onclick="toggleEdit('${e.id}')" aria-label="Annullér redigering">
+                Annullér
+              </button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function toggleEdit(id) {
+      const panel = document.getElementById(`edit-panel-${id}`);
+      const btn = document.getElementById(`edit-btn-${id}`);
+      const isOpen = panel.style.display !== 'none';
+      panel.style.display = isOpen ? 'none' : 'block';
+      btn.setAttribute('aria-expanded', !isOpen);
+      btn.textContent = isOpen ? '✏️ Redigér' : '✖ Luk';
+      if (!isOpen) {
+        // Focus first input in edit panel for accessibility
+        panel.querySelector('input, textarea')?.focus();
+      }
+    }
+
+    async function saveEdit(id) {
+      const elev = elevatorData.find(e => e.id === id);
+      if (!elev) return;
+
+      const newEta      = document.getElementById(`edit-eta-${id}`).value;
+      const newLocation = document.getElementById(`edit-location-${id}`).value.trim();
+      const newNote     = document.getElementById(`edit-note-${id}`).value.trim();
+      const newTime     = document.getElementById(`edit-time-${id}`)?.value || '09:00';
+
+      elev.etaRepair     = newEta || null;
+      elev.location      = newLocation || elev.location;
+      elev.note          = newNote || null;
+      elev._calEventDate = newEta || elev._calEventDate;
+      elev._calEventTime = newTime;
+
+      if (elev._calEventId && typeof gcalIsLoggedIn === 'function' && gcalIsLoggedIn() && newEta) {
+        try {
+          await updateRepairEvent(elev._calEventId, newEta, newTime, newNote);
+          showToast(`💾 Gemt og synkroniseret med Google Calendar.`);
+        } catch (err) {
+          showToast(`💾 Gemt lokalt – kalender-fejl: ${err.message}`, 'warning');
+        }
+      } else {
+        showToast(`💾 Ændringer gemt for ${elev.station}.`);
+      }
+
+      saveData();
+      renderAdminElevators();
+    }
+
+    /* ==============================================
+       RENDER: USER REPORTS
+    ============================================== */
+    function renderUserReports() {
+      const list = document.getElementById('user-reports-list');
+      if (userReports.length === 0) {
+        list.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><p>Ingen bruger-indberetninger endnu.</p></div>';
+        return;
+      }
+
+      list.innerHTML = userReports.map(r => `
+        <div class="user-report-item" role="listitem" aria-label="Brugerrapport om ${r.station}">
+          <div class="report-meta">
+            <span class="report-station">👤 ${r.station}</span>
+            <span class="report-time">${r.reportedAt ? formatDate(r.reportedAt) : 'Ukendt dato'}</span>
+          </div>
+          ${r.location ? `<div style="font-size:0.82rem; color:var(--color-text-muted); margin-bottom:0.3rem;">📍 ${r.location}</div>` : ''}
+          <div class="report-desc">${r.description}</div>
+          <div class="report-actions">
+            <button class="btn-primary" style="font-size:0.82rem; padding:0.4rem 0.85rem;"
+              onclick="approveReport('${r.id}')"
+              aria-label="Godkend og opret officiel registrering for ${r.station}">
+              ✅ Godkend som officiel
+            </button>
+            <button class="btn-danger"
+              onclick="deleteReport('${r.id}')"
+              aria-label="Slet rapport om ${r.station}">
+              🗑️ Slet
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    /* ==============================================
+       ACTIONS
+    ============================================== */
+    function markRepaired(id) {
+      const elev = elevatorData.find(e => e.id === id);
+      if (elev) {
+        // Slet kalenderbegivenhed hvis den findes
+        if (elev._calEventId && gcalIsLoggedIn()) {
+          deleteRepairEvent(elev._calEventId);
+        }
+        elev.status = 'ok';
+        elev.etaRepair = null;
+        elev.note = null;
+        elev.reportedAt = null;
+        elev._calEventId = null;
+        elev._calEventDate = null;
+        elev._calEventTime = null;
+        saveData();
+        renderAdminElevators();
+        showToast(`✅ ${elev.station} er markeret som repareret.`);
+      }
+    }
+
+    async function markDown(id) {
+      const elev = elevatorData.find(e => e.id === id);
+      if (elev) {
+        elev.status = 'down';
+        elev.reportedAt = new Date().toISOString().split('T')[0];
+
+        // Opret automatisk kalenderbegivenhed hvis logget ind
+        if (gcalIsLoggedIn()) {
+          try {
+            const event = await createRepairEvent(elev);
+            if (event) {
+              elev._calEventId = event.id;
+              const nextDay = getNextWeekday(9, 0);
+              elev._calEventDate = nextDay.toISOString().split('T')[0];
+              elev._calEventTime = '09:00';
+              elev.etaRepair = elev._calEventDate;
+              showToast(`🔴 ${elev.station} sat ned. Reparationsbesøg oprettet i Google Calendar.`, 'warning');
+            }
+          } catch (err) {
+            console.error('Kalender-fejl:', err);
+            showToast(`🔴 ${elev.station} sat ned. Kalender-fejl: ${err.message}`, 'warning');
+          }
+        } else {
+          showToast(`🔴 ${elev.station} er markeret som ude af drift.`, 'warning');
+        }
+
+        saveData();
+        renderAdminElevators();
+      }
+    }
+
+    function deleteElevator(id) {
+      const elev = elevatorData.find(e => e.id === id);
+      if (!elev) return;
+      if (!confirm(`Er du sikker på, at du vil slette elevator-registreringen for ${elev.station}?`)) return;
+      elevatorData = elevatorData.filter(e => e.id !== id);
+      saveData();
+      renderAdminElevators();
+      showToast(`🗑️ ${elev.station} er fjernet.`, 'warning');
+    }
+
+    function approveReport(id) {
+      const report = userReports.find(r => r.id === id);
+      if (!report) return;
+
+      // Convert user report to official elevator entry
+      const newEntry = {
+        id: 'elev-' + Date.now(),
+        station: report.station,
+        location: report.location || 'Ukendt placering',
+        status: 'down',
+        etaRepair: null,
+        note: report.description,
+        isUserReport: false,
+        reportedAt: new Date().toISOString().split('T')[0]
+      };
+
+      elevatorData.push(newEntry);
+      userReports = userReports.filter(r => r.id !== id);
+      saveData();
+      renderAdminElevators();
+      renderUserReports();
+      showToast(`✅ Rapport godkendt og tilføjet som officiel registrering for ${report.station}.`);
+    }
+
+    function deleteReport(id) {
+      const report = userReports.find(r => r.id === id);
+      if (!report) return;
+      if (!confirm(`Slet rapport om ${report.station}?`)) return;
+      userReports = userReports.filter(r => r.id !== id);
+      saveData();
+      renderUserReports();
+      showToast(`🗑️ Rapport slettet.`, 'warning');
+    }
+
+    /* ==============================================
+       ADD OUTAGE FORM
+    ============================================== */
+    document.getElementById('add-outage-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const station = document.getElementById('outage-station').value.trim();
+      const location = document.getElementById('outage-location').value.trim();
+      const eta = document.getElementById('outage-eta').value;
+      const reported = document.getElementById('outage-reported').value;
+      const note = document.getElementById('outage-note').value.trim();
+
+      if (!station) {
+        showToast('Udfyld venligst stationsnavn.', 'warning');
+        return;
+      }
+
+      // TODO: Replace with POST /api/elevators
+      const newEntry = {
+        id: 'elev-' + Date.now(),
+        station,
+        location: location || 'Ikke angivet',
+        status: 'down',
+        etaRepair: eta || null,
+        note: note || null,
+        isUserReport: false,
+        reportedAt: reported || new Date().toISOString().split('T')[0]
+      };
+
+      elevatorData.push(newEntry);
+      saveData();
+      renderAdminElevators();
+      this.reset();
+      showToast(`🔴 Nedbrud registreret for ${station}.`, 'warning');
+    });
+
+    /* ==============================================
+       TOAST
+    ============================================== */
+    function showToast(message, type = 'success') {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.style.background = type === 'warning'
+        ? 'var(--color-warning)'
+        : 'var(--color-success)';
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 4000);
+    }
+
+    /* ==============================================
+       TODO HOOKS (til fremtidige integrationer)
+       ============================================
+       Google Calendar er implementeret i gcal.js
+
+       Rejseplan API:
+         window.initRejseplanen = function(apiKey) {
+           // Hent stationsliste: GET /location.name?input=...
+           // Hent rejser:        GET /trip?originId=...&destId=...
+         }
+
+       Rigtig autentificering:
+         window.initAuth = function(config) {
+           // F.eks. Firebase Auth, Supabase Auth, eller egen JWT-løsning
+         }
+    ============================================== */
+
+    /* ==============================================
+       GOOGLE CALENDAR HANDLERS
+    ============================================== */
+    async function handleGcalLogin() {
+      const btn = document.getElementById('gcal-login-btn');
+      btn.textContent = 'Logger ind...';
+      btn.disabled = true;
+      try {
+        await gcalLogin();
+        btn.style.display = 'none';
+        document.getElementById('gcal-logged-in').style.display = 'block';
+        document.getElementById('gcal-calendar-name').textContent = '📅 ' + GCAL_CONFIG.CALENDAR_NAME;
+        document.getElementById('gcal-routine-section').style.display = 'block';
+        populateRoutineStationSelect();
+        loadRoutineChecks();
+        showToast('✅ Forbundet til Google Calendar!');
+      } catch (err) {
+        btn.textContent = 'Log ind med Google';
+        btn.disabled = false;
+        showToast('❌ Google login fejlede: ' + err.message, 'warning');
+      }
+    }
+
+    function handleGcalLogout() {
+      gcalLogout();
+      const btn = document.getElementById('gcal-login-btn');
+      btn.style.display = 'inline-flex';
+      btn.textContent = 'Log ind med Google';
+      btn.disabled = false;
+      document.getElementById('gcal-logged-in').style.display = 'none';
+      document.getElementById('gcal-routine-section').style.display = 'none';
+      showToast('Google Calendar afbrudt.', 'warning');
+    }
+
+    function populateRoutineStationSelect() {
+      const select = document.getElementById('routine-station');
+      select.innerHTML = '<option value="">– Vælg elevator –</option>' +
+        elevatorData.map(function(e) {
+          return '<option value="' + e.id + '">' + e.station + ' – ' + (e.location || 'Ukendt') + '</option>';
+        }).join('');
+    }
+
+    async function loadRoutineChecks() {
+      const list = document.getElementById('routine-checks-list');
+
+      // Læs fra localStorage (virker altid, uanset Google login)
+      const today = new Date().toISOString().split('T')[0];
+      const localChecks = JSON.parse(localStorage.getItem('routineChecks') || '[]')
+        .filter(c => c.date >= today);
+
+      if (localChecks.length === 0) {
+        list.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><p>Ingen planlagte rutine-tjek.</p></div>';
+        return;
+      }
+
+      list.innerHTML = localChecks.map(function(c) {
+        const d = new Date(c.date);
+        const dateStr = d.toLocaleDateString('da-DK', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        return '<div style="padding:0.8rem 1rem; border:2px solid #f4d87a; border-radius:var(--radius-md); background:#fffdf0; margin-bottom:0.6rem;">'
+          + '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.5rem;">'
+          + '<div>'
+          + '<div style="font-weight:700; color:#7a5c00;">🔧 ' + c.station + '</div>'
+          + '<div style="font-size:0.85rem; color:var(--color-text-muted); margin-top:0.2rem;">📅 ' + dateStr + '</div>'
+          + (c.note ? '<div style="font-size:0.82rem; font-style:italic; margin-top:0.3rem;">' + c.note + '</div>' : '')
+          + '</div>'
+          + '<button class="btn-danger" style="font-size:0.78rem; padding:0.3rem 0.6rem; flex-shrink:0;" '
+          + 'onclick="deleteRoutineCheckLocally(\'' + c.id + '\'); loadRoutineChecks();" aria-label="Slet rutine-tjek for ' + c.station + '">🗑️</button>'
+          + '</div>'
+          + '</div>';
+      }).join('');
+    }
+
+    document.getElementById('routine-check-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const elevId = document.getElementById('routine-station').value;
+      const date   = document.getElementById('routine-date').value;
+      const note   = document.getElementById('routine-note').value.trim();
+      if (!elevId || !date) { showToast('Vælg venligst station og dato.', 'warning'); return; }
+      const elev = elevatorData.find(function(e) { return e.id === elevId; });
+      if (!elev) return;
+      try {
+        // Gem i localStorage så forsiden kan vise det uden login
+        saveRoutineCheckLocally(elev, date, note);
+
+        // Gem også i Google Calendar hvis logget ind
+        if (typeof gcalIsLoggedIn === 'function' && gcalIsLoggedIn()) {
+          await createRoutineCheck(elev, date, note);
+        }
+
+        this.reset();
+        await loadRoutineChecks();
+        showToast('📅 Rutine-tjek oprettet for ' + elev.station + '!');
+      } catch (err) {
+        showToast('❌ Fejl: ' + err.message, 'warning');
+      }
+    });
+
+    function saveRoutineCheckLocally(elev, date, note) {
+      const checks = JSON.parse(localStorage.getItem('routineChecks') || '[]');
+      // Fjern gamle (fortid)
+      const today = new Date().toISOString().split('T')[0];
+      const filtered = checks.filter(c => c.date >= today);
+      filtered.push({
+        id: 'routine-' + Date.now(),
+        stationId: elev.id,
+        station: elev.station,
+        location: elev.location || '',
+        date: date,
+        note: note || null,
+        createdAt: new Date().toISOString()
+      });
+      // Sorter efter dato
+      filtered.sort((a, b) => a.date.localeCompare(b.date));
+      localStorage.setItem('routineChecks', JSON.stringify(filtered));
+    }
+
+    function deleteRoutineCheckLocally(id) {
+      const checks = JSON.parse(localStorage.getItem('routineChecks') || '[]');
+      localStorage.setItem('routineChecks', JSON.stringify(checks.filter(c => c.id !== id)));
+    }
+
+  </script>
+
+</body>
+</html>

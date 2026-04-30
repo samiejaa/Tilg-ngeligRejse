@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Tilgængelig rejseplanner – find rejser med elevator og tjek om elevatorer er i drift." />
+  <title>TilgængeligRejse – Tilgængelig rejseplanlægning</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Skip to content (accessibility) -->
+  <a class="skip-link" href="#main-content">Spring til indhold</a>
+
+  <!-- HEADER -->
+  <header class="site-header" role="banner">
+    <div class="header-inner">
+      <a href="index.html" class="site-logo" aria-label="TilgængeligRejse – forside">
+        <span class="logo-icon" aria-hidden="true">♿</span>
+        <span>
+          <span class="logo-name">TilgængeligRejse</span>
+          <span class="logo-sub">Tilgængelig rejseplanlægning</span>
+        </span>
+      </a>
+      <div class="header-actions">
+        <a href="admin.html" class="btn-admin-link" aria-label="Log ind som reparatør eller administrator">
+          🔧 Reparatør-login
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN -->
+  <main class="main-content" id="main-content">
+
+    <!-- STATUS BANNER (shown if there are active outages) -->
+    <div class="status-banner warning" id="global-status-banner" role="alert" aria-live="polite">
+      <span class="banner-icon" aria-hidden="true">⚠️</span>
+      <div>
+        <strong>Aktive elevatorfejl på ruten</strong>
+        Der er i øjeblikket <span id="outage-count">2</span> elevatornedbrud på stationer i systemet.
+        Se listen nedenfor for detaljer og estimerede reparationstider.
+      </div>
+    </div>
+
+    <!-- SEARCH -->
+    <section class="search-section" aria-labelledby="search-heading">
+      <h1 id="search-heading">Planlæg din rejse</h1>
+      <p class="search-subtitle">Vi viser kun ruter med tilgængelige elevatorer – eller advarer dig tydeligt, hvis der er problemer.</p>
+
+      <form class="search-form" id="search-form" novalidate>
+        <div class="field-group">
+          <label for="from-input">Fra</label>
+          <input
+            type="text"
+            id="from-input"
+            name="from"
+            placeholder="F.eks. København H"
+            autocomplete="off"
+            aria-autocomplete="list"
+            aria-label="Afrejsesstation"
+          />
+        </div>
+        <div class="field-group">
+          <label for="to-input">Til</label>
+          <input
+            type="text"
+            id="to-input"
+            name="to"
+            placeholder="F.eks. Aarhus H"
+            autocomplete="off"
+            aria-autocomplete="list"
+            aria-label="Ankomststation"
+          />
+        </div>
+        <div class="field-group">
+          <label for="date-input">Dato</label>
+          <input type="date" id="date-input" name="date" aria-label="Rejsedato" />
+        </div>
+        <div class="field-group">
+          <label for="time-input">Tidspunkt</label>
+          <input type="time" id="time-input" name="time" aria-label="Afrejsetidspunkt" />
+        </div>
+        <div class="field-group full-width">
+          <div class="search-options" role="group" aria-label="Tilgængelighedsindstillinger">
+            <label class="checkbox-label">
+              <input type="checkbox" id="accessible-only" name="accessible-only" checked />
+              Kun tilgængelige ruter (elevator i drift)
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="show-warnings" name="show-warnings" checked />
+              Vis advarsler ved elevatornedbrud
+            </label>
+          </div>
+        </div>
+        <button type="submit" class="btn-search" id="search-btn">
+          🔍 Søg rejser
+        </button>
+      </form>
+    </section>
+
+    <!-- SEARCH RESULTS (hidden until search) -->
+    <section id="results-section" aria-labelledby="results-heading" style="display:none; margin-bottom: 2rem;">
+      <h2 class="section-title" id="results-heading">🚆 Rejseforslag</h2>
+      <div id="results-container"></div>
+    </section>
+
+    <!-- ELEVATOR STATUS -->
+    <section aria-labelledby="elevator-heading">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:1rem;">
+        <h2 class="section-title" id="elevator-heading" style="margin-bottom:0;">🛗 Elevatorstatus – alle stationer</h2>
+        <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
+          <span id="kone-sync-status" style="font-size:0.8rem; color:var(--color-text-muted);"></span>
+          <span id="elevator-count" style="font-size:0.85rem; color:var(--color-text-muted);"></span>
+        </div>
+      </div>
+
+      <!-- Kommende planlagte tjek fra Google Calendar -->
+      <div style="margin-bottom:1.25rem;">
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:0.75rem;">
+          <h3 style="font-size:1rem; font-weight:700; color:var(--color-text); display:flex; align-items:center; gap:0.4rem; margin:0;">
+            📅 Kommende planlagt vedligehold
+          </h3>
+          <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+            <button id="gcal-sync-btn" class="btn-gcal-sync">
+              <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                style="width:16px; height:16px; vertical-align:middle; margin-right:4px;" alt="" />
+              Synk med Google Calendar
+            </button>
+            <span id="gcal-sync-status-front" style="font-size:0.8rem; color:var(--color-text-muted);"></span>
+          </div>
+        </div>
+        <div id="planned-maintenance-list">
+          <div class="planned-maintenance-empty">🗓️ Tryk "Synk med Google Calendar" for at se planlagte vedligeholdstjek.</div>
+        </div>
+      </div>
+
+      <div class="elevator-search-bar">
+        <div class="elevator-search-input-wrap">
+          <span class="elevator-search-icon" aria-hidden="true">🔍</span>
+          <input
+            type="search"
+            id="elevator-search"
+            placeholder="Søg efter station…"
+            aria-label="Søg i elevatorstatus"
+            autocomplete="off"
+          />
+          <button class="elevator-search-clear" id="elevator-search-clear" aria-label="Ryd søgning" style="display:none;">✕</button>
+        </div>
+        <div class="elevator-filter-btns" role="group" aria-label="Filtrer elevatorstatus">
+          <button class="filter-btn active" data-filter="all">Alle</button>
+          <button class="filter-btn" data-filter="down">🔴 Nedbrud</button>
+          <button class="filter-btn" data-filter="ok">🟢 I drift</button>
+          <button class="filter-btn" data-filter="user">👤 Bruger-rapporteret</button>
+        </div>
+      </div>
+
+      <div class="elevator-grid" id="elevator-grid" role="list" aria-label="Liste over elevatorers status">
+        <!-- Populated by JS -->
+      </div>
+      <div id="elevator-no-results" style="display:none;" class="empty-state" role="status" aria-live="polite">
+        <div class="empty-icon">🔍</div>
+        <p>Ingen elevatorer matcher din søgning.</p>
+      </div>
+      <div id="elevator-show-more-wrap" style="display:none; text-align:center; margin-top:1rem; display:flex; gap:0.5rem; justify-content:center;">
+        <button id="elevator-show-more" class="btn-show-more" aria-label="Vis flere elevatorer">
+          Vis flere <span id="elevator-remaining"></span> ▼
+        </button>
+        <button id="elevator-show-less" class="btn-show-more" style="display:none;" aria-label="Fold listen sammen">
+          Vis færre ▲
+        </button>
+      </div>
+    </section>
+
+    <!-- REPORT SECTION -->
+    <section class="report-section" aria-labelledby="report-heading">
+      <h2 class="section-title" id="report-heading">📢 Rapportér et problem</h2>
+      <p>
+        Har du observeret et problem med en elevator eller tilgængelighed på en station?
+        Du kan indberette det her. Bemærk at brugerrapporter markeres tydeligt som
+        <em>ikke-officielle</em> og ikke erstatter officielle meldinger.
+      </p>
+
+      <div class="disclaimer-box" role="note" aria-label="Vigtig information om brugerrapporter">
+        ⚠️ <strong>Bemærk:</strong> Brugerrapporter er <em>ikke verificerede</em>. De markeres tydeligt
+        som "Bruger-rapporteret" og bør ikke bruges som eneste kilde til planlægning.
+        Officielle oplysninger kommer fra reparatørerne.
+      </div>
+
+      <form class="report-form" id="report-form" novalidate style="margin-top: 1rem;">
+        <div>
+          <label for="report-station">Station *</label>
+          <input
+            type="text"
+            id="report-station"
+            name="station"
+            placeholder="F.eks. Nørreport"
+            required
+            aria-required="true"
+          />
+        </div>
+        <div>
+          <label for="report-location">Placering af elevator (valgfrit)</label>
+          <input
+            type="text"
+            id="report-location"
+            name="location"
+            placeholder="F.eks. Perron 2, sydlig indgang"
+          />
+        </div>
+        <div>
+          <label for="report-desc">Beskrivelse *</label>
+          <textarea
+            id="report-desc"
+            name="description"
+            placeholder="Beskriv problemet kort – f.eks. 'Elevatoren fra perron til gadeplan virker ikke'"
+            required
+            aria-required="true"
+          ></textarea>
+        </div>
+        <button type="submit" class="btn-report" aria-label="Send din rapport">
+          📤 Send rapport
+        </button>
+      </form>
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="site-footer" role="contentinfo">
+    <p>TilgængeligRejse &copy; 2025 · Bygget for at gøre offentlig transport tilgængelig for alle.</p>
+    <p style="margin-top:0.4rem; font-size:0.78rem;">
+      <!-- API integration point: Rejseplan API, Google Calendar API -->
+      Klar til Rejseplan API og Google Calendar integration.
+    </p>
+  </footer>
+
+  <!-- TOAST -->
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <script>
+    /* ==============================================
+       DATA STORE
+       ==============================================
+       Replace this section with API calls later.
+       Structure is designed to match Rejseplanen API schema where possible.
+    ============================================== */
+
+    // --------------- ELEVATOR DATA ---------------
+    // TODO: Replace with fetch('/api/elevators') when Rejseplan API is connected
+    let elevatorData = JSON.parse(localStorage.getItem('elevatorData') || 'null') || [
+      {
+        id: 'elev-001',
+        station: 'København H',
+        location: 'Perron 1-2 → Gadeplan',
+        status: 'ok',        // 'ok' | 'down'
+        etaRepair: null,
+        note: null,
+        isUserReport: false,
+        reportedAt: null
+      },
+      {
+        id: 'elev-002',
+        station: 'Nørreport',
+        location: 'Sydlig indgang → Metro-niveau',
+        status: 'down',
+        etaRepair: '2025-09-04',
+        note: 'Planlagt vedligehold. Brug nordlig indgang som alternativ.',
+        isUserReport: false,
+        reportedAt: '2025-08-28'
+      },
+      {
+        id: 'elev-003',
+        station: 'Aarhus H',
+        location: 'Perron 3 → Gadeplan',
+        status: 'ok',
+        etaRepair: null,
+        note: null,
+        isUserReport: false,
+        reportedAt: null
+      },
+      {
+        id: 'elev-004',
+        station: 'Odense',
+        location: 'Hovedindgang',
+        status: 'down',
+        etaRepair: '2025-09-10',
+        note: null,
+        isUserReport: false,
+        reportedAt: '2025-08-30'
+      },
+      {
+        id: 'elev-005',
+        station: 'Fredericia',
+        location: 'Perron 2',
+        status: 'ok',
+        etaRepair: null,
+        note: null,
+        isUserReport: false,
+        reportedAt: null
+      },
+      {
+        id: 'elev-006',
+        station: 'Vejle',
+        location: 'Underføring → Perron 1',
+        status: 'ok',
+        etaRepair: null,
+        note: null,
+        isUserReport: false,
+        reportedAt: null
+      }
+    ];
+
+    // --------------- USER REPORTS ---------------
+    // TODO: Replace with POST/GET /api/user-reports
+    let userReports = JSON.parse(localStorage.getItem('userReports') || '[]');
+
+    // --------------- MOCK TRIPS ---------------
+    // TODO: Replace entirely with Rejseplan API /trip endpoint
+    function getMockTrips(from, to, date, time, accessibleOnly) {
+      const trips = [
+        {
+          id: 't1',
+          departureTime: time || '08:14',
+          arrivalTime: '11:32',
+          duration: '3t 18min',
+          isAccessible: true,
+          legs: [
+            { icon: '🚆', line: 'IC 33', from: from || 'Fra', to: 'Fredericia', depTime: time || '08:14', platform: 'Perron 1' },
+            { icon: '🚆', line: 'RE 54', from: 'Fredericia', to: to || 'Til', depTime: '10:05', platform: 'Perron 3' }
+          ],
+          elevatorIssues: []
+        },
+        {
+          id: 't2',
+          departureTime: time ? addMinutes(time, 45) : '09:02',
+          arrivalTime: '12:15',
+          duration: '3t 13min',
+          isAccessible: false,
+          legs: [
+            { icon: '🚆', line: 'Lyn 12', from: from || 'Fra', to: 'Odense', depTime: time ? addMinutes(time, 45) : '09:02', platform: 'Perron 2', elevatorDown: true, elevatorStation: 'Odense' },
+            { icon: '🚆', line: 'IC 44', from: 'Odense', to: to || 'Til', depTime: '10:55', platform: 'Perron 1' }
+          ],
+          elevatorIssues: ['Odense (Perron 2 elevator nede – estimeret repareret 10. sep)']
+        }
+      ];
+      if (accessibleOnly) return trips.filter(t => t.isAccessible);
+      return trips;
+    }
+
+    function addMinutes(timeStr, mins) {
+      const [h, m] = timeStr.split(':').map(Number);
+      const total = h * 60 + m + mins;
+      return `${String(Math.floor(total / 60)).padStart(2,'0')}:${String(total % 60).padStart(2,'0')}`;
+    }
+
+    /* ==============================================
+       RENDER FUNCTIONS
+    ============================================== */
+    function saveData() {
+      localStorage.setItem('elevatorData', JSON.stringify(elevatorData));
+      localStorage.setItem('userReports', JSON.stringify(userReports));
+    }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return null;
+      const d = new Date(dateStr);
+      return d.toLocaleDateString('da-DK', { day: 'numeric', month: 'long', year: 'numeric' });
+    }
+
+    // Active search/filter state
+    let elevatorSearchQuery = '';
+    let elevatorActiveFilter = 'all';
+    const ELEVATORS_PER_PAGE = 6;
+    let elevatorShowCount = ELEVATORS_PER_PAGE;
+
+    function getAllElevatorItems() {
+      return [
+        ...elevatorData,
+        ...userReports.map(r => ({
+          id: r.id,
+          station: r.station,
+          location: r.location || 'Ukendt placering',
+          status: 'down',
+          etaRepair: null,
+          note: r.description,
+          isUserReport: true,
+          reportedAt: r.reportedAt
+        }))
+      ];
+    }
+
+    function highlightMatch(text, query) {
+      if (!query) return text;
+      const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return text.replace(new RegExp(`(${escaped})`, 'gi'), '<mark>$1</mark>');
+    }
+
+    function renderElevatorGrid() {
+      const grid = document.getElementById('elevator-grid');
+      const noResults = document.getElementById('elevator-no-results');
+      const countEl = document.getElementById('elevator-count');
+      const combined = getAllElevatorItems();
+
+      // Update global outage banner (always based on full data)
+      const outages = combined.filter(e => e.status === 'down');
+      document.getElementById('outage-count').textContent = outages.length;
+      document.getElementById('global-status-banner').style.display = outages.length > 0 ? 'flex' : 'none';
+
+      if (combined.length === 0) {
+        grid.innerHTML = '<div class="empty-state"><div class="empty-icon">🛗</div><p>Ingen elevatordata tilgængelig endnu.</p></div>';
+        noResults.style.display = 'none';
+        countEl.textContent = '';
+        return;
+      }
+
+      // Apply filter
+      let filtered = combined.filter(e => {
+        if (elevatorActiveFilter === 'down') return e.status === 'down' && !e.isUserReport;
+        if (elevatorActiveFilter === 'ok')   return e.status === 'ok';
+        if (elevatorActiveFilter === 'user') return e.isUserReport;
+        return true;
+      });
+
+      // Apply search
+      const q = elevatorSearchQuery.trim().toLowerCase();
+      if (q) {
+        filtered = filtered.filter(e =>
+          e.station.toLowerCase().includes(q) ||
+          (e.location || '').toLowerCase().includes(q)
+        );
+      }
+
+      // Sort: down first, then alphabetical
+      filtered.sort((a, b) => {
+        if (a.status === 'down' && b.status !== 'down') return -1;
+        if (a.status !== 'down' && b.status === 'down') return 1;
+        return a.station.localeCompare(b.station);
+      });
+
+      // Update count label
+      countEl.textContent = filtered.length === combined.length
+        ? `${combined.length} stationer`
+        : `${filtered.length} af ${combined.length} stationer`;
+
+      if (filtered.length === 0) {
+        grid.innerHTML = '';
+        noResults.style.display = 'block';
+        return;
+      }
+      noResults.style.display = 'none';
+
+      const visible = filtered.slice(0, elevatorShowCount);
+      const remaining = filtered.length - elevatorShowCount;
+      const showMoreWrap = document.getElementById('elevator-show-more-wrap');
+      const showMoreBtn = document.getElementById('elevator-show-more');
+      const showLessBtn = document.getElementById('elevator-show-less');
+      const remainingEl = document.getElementById('elevator-remaining');
+
+      const hasMore = remaining > 0;
+      const hasExpanded = elevatorShowCount > ELEVATORS_PER_PAGE;
+
+      showMoreWrap.style.display = (hasMore || hasExpanded) ? 'flex' : 'none';
+      showMoreBtn.style.display = hasMore ? 'inline-flex' : 'none';
+      showLessBtn.style.display = hasExpanded ? 'inline-flex' : 'none';
+      remainingEl.textContent = hasMore ? `(${remaining} flere)` : '';
+
+      grid.innerHTML = visible.map(e => {
+        const isDown = e.status === 'down';
+        const cardClass = e.isUserReport ? 'status-user' : (isDown ? 'status-down' : 'status-ok');
+        const badgeClass = e.isUserReport ? 'user-reported' : (isDown ? 'down' : 'ok');
+        const badgeText = e.isUserReport ? '👤 Bruger-rapporteret' : (isDown ? '🔴 Ude af drift' : '🟢 I drift');
+
+        const stationHtml  = highlightMatch(e.station, q);
+        const locationHtml = highlightMatch(e.location || '', q);
+        const noteHtml     = e.note ? highlightMatch(e.note, q) : null;
+
+        return `
+          <article class="elevator-card ${cardClass}" role="listitem" aria-label="Elevator på ${e.station}: ${isDown ? 'ude af drift' : 'i drift'}">
+            <div class="elevator-header">
+              <div>
+                <div class="elevator-station">${stationHtml}</div>
+                <div class="elevator-location">${locationHtml}</div>
+              </div>
+              <span class="status-badge ${badgeClass}">${badgeText}</span>
+            </div>
+            ${e.isUserReport ? `<div class="user-report-tag">⚠️ Ikke officiel – rapporteret af bruger</div>` : ''}
+            ${e.etaRepair ? `<div class="elevator-eta">⏱ Forventet repareret: ${formatDate(e.etaRepair)}</div>` : ''}
+            ${e._calEventDate ? `
+              <div class="cal-event-box" role="note">
+                <span class="cal-event-icon">📅</span>
+                <div>
+                  <strong>Reparatørbesøg booket:</strong>
+                  ${formatDate(e._calEventDate)}${e._calEventTime ? ' kl. ' + e._calEventTime : ''}
+                  <div class="cal-event-disclaimer">⚠️ OBS: Det er ikke sikkert problemet kan løses ved dette besøg. Manglende reservedele kan betyde yderligere forsinkelse.</div>
+                </div>
+              </div>` : ''}
+            ${noteHtml ? `<div class="elevator-note">${noteHtml}</div>` : ''}
+            ${e.reportedAt && !e.isUserReport ? `<div class="elevator-note">Meldt: ${formatDate(e.reportedAt)}</div>` : ''}
+          </article>
+        `;
+      }).join('');
+    }
+
+    function renderResults(trips) {
+      const container = document.getElementById('results-container');
+      if (!trips || trips.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">🚫</div>
+            <p>Ingen tilgængelige ruter fundet med de valgte kriterier.<br>Prøv at fjerne filteret "Kun tilgængelige ruter".</p>
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = trips.map(t => `
+        <article class="trip-card" aria-label="Rejseforslag: ${t.departureTime} til ${t.arrivalTime}, ${t.isAccessible ? 'tilgængelig' : 'ikke fuldt tilgængelig'}">
+          <div class="trip-header">
+            <div>
+              <div class="trip-times">${t.departureTime} → ${t.arrivalTime}</div>
+              <div class="trip-duration">Rejsetid: ${t.duration}</div>
+            </div>
+            <span class="trip-accessible-badge ${t.isAccessible ? 'accessible' : 'not-accessible'}">
+              ${t.isAccessible ? '♿ Tilgængelig' : '⚠️ Ikke fuldt tilgængelig'}
+            </span>
+          </div>
+          <div class="trip-legs">
+            ${t.legs.map(leg => `
+              <div class="trip-leg">
+                <span class="leg-icon" aria-hidden="true">${leg.icon}</span>
+                <div class="leg-info">
+                  <strong>${leg.line}: ${leg.from} → ${leg.to}</strong>
+                  <span>Afgang ${leg.depTime} · ${leg.platform}</span>
+                  ${leg.elevatorDown ? `<div class="elevator-warning-inline" role="alert">🔴 Elevator nede: ${leg.elevatorStation}</div>` : ''}
+                </div>
+              </div>
+            `).join('')}
+            ${t.elevatorIssues.length > 0 ? `
+              <div class="status-banner warning" style="margin-top:0.5rem; padding: 0.65rem 1rem;" role="alert">
+                <span aria-hidden="true">⚠️</span>
+                <div><strong>Elevatoradvarsel på ruten:</strong> ${t.elevatorIssues.join(', ')}</div>
+              </div>
+            ` : ''}
+          </div>
+        </article>
+      `).join('');
+    }
+
+    /* ==============================================
+       EVENT LISTENERS
+    ============================================== */
+
+    // Set default date/time to now
+    (function setDefaults() {
+      const now = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      document.getElementById('date-input').value =
+        `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+      document.getElementById('time-input').value =
+        `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    })();
+
+    // Search form
+    document.getElementById('search-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const from = document.getElementById('from-input').value.trim();
+      const to = document.getElementById('to-input').value.trim();
+      const time = document.getElementById('time-input').value;
+      const date = document.getElementById('date-input').value;
+      const accessibleOnly = document.getElementById('accessible-only').checked;
+
+      if (!from || !to) {
+        showToast('Udfyld venligst både Fra og Til.', 'warning');
+        return;
+      }
+
+      // TODO: Replace getMockTrips() with:
+      // const trips = await fetchRejseplanen({ from, to, date, time, accessibleOnly });
+      const trips = getMockTrips(from, to, date, time, accessibleOnly);
+
+      document.getElementById('results-section').style.display = 'block';
+      renderResults(trips);
+      document.getElementById('results-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    // Report form
+    document.getElementById('report-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const station = document.getElementById('report-station').value.trim();
+      const location = document.getElementById('report-location').value.trim();
+      const description = document.getElementById('report-desc').value.trim();
+
+      if (!station || !description) {
+        showToast('Udfyld venligst station og beskrivelse.', 'warning');
+        return;
+      }
+
+      // TODO: Replace with POST /api/user-reports
+      const report = {
+        id: 'user-' + Date.now(),
+        station,
+        location,
+        description,
+        reportedAt: new Date().toISOString().split('T')[0]
+      };
+
+      userReports.push(report);
+      saveData();
+      renderElevatorGrid();
+
+      this.reset();
+      showToast('✅ Din rapport er modtaget. Den vises markeret som bruger-rapporteret.', 'success');
+    });
+
+    /* ==============================================
+       TOAST HELPER
+    ============================================== */
+    function showToast(message, type = 'success') {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.style.background = type === 'warning'
+        ? 'var(--color-warning)'
+        : 'var(--color-success)';
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 4000);
+    }
+
+    /* ==============================================
+       INIT
+    ============================================== */
+    renderElevatorGrid();
+
+    // Synk med Google Calendar knap
+    document.getElementById('gcal-sync-btn').addEventListener('click', async function () {
+      const btn      = this;
+      const statusEl = document.getElementById('gcal-sync-status-front');
+      btn.disabled   = true;
+      btn.innerHTML  = '🔄 Logger ind...';
+      try {
+        await gcalLogin();
+        btn.innerHTML = '<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" style="width:16px;height:16px;vertical-align:middle;margin-right:4px;" alt="" /> Opdatér';
+        btn.disabled  = false;
+        await loadPlannedMaintenance();
+      } catch (err) {
+        btn.innerHTML = '<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" style="width:16px;height:16px;vertical-align:middle;margin-right:4px;" alt="" /> Synk med Google Calendar';
+        btn.disabled  = false;
+        statusEl.textContent = '❌ ' + err.message;
+        statusEl.style.color = 'var(--color-danger)';
+      }
+    });
+
+    // Elevator søgning
+    const elevSearchInput = document.getElementById('elevator-search');
+    const elevSearchClear = document.getElementById('elevator-search-clear');
+
+    elevSearchInput.addEventListener('input', function () {
+      elevatorSearchQuery = this.value;
+      elevatorShowCount = ELEVATORS_PER_PAGE;
+      elevSearchClear.style.display = this.value ? 'flex' : 'none';
+      renderElevatorGrid();
+    });
+
+    elevSearchClear.addEventListener('click', function () {
+      elevSearchInput.value = '';
+      elevatorSearchQuery = '';
+      elevatorShowCount = ELEVATORS_PER_PAGE;
+      this.style.display = 'none';
+      elevSearchInput.focus();
+      renderElevatorGrid();
+    });
+
+    // Filter knapper
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', function () {
+        document.querySelectorAll('.filter-btn').forEach(b => {
+          b.classList.remove('active');
+          b.setAttribute('aria-pressed', 'false');
+        });
+        this.classList.add('active');
+        this.setAttribute('aria-pressed', 'true');
+        elevatorActiveFilter = this.dataset.filter;
+        elevatorShowCount = ELEVATORS_PER_PAGE;
+        renderElevatorGrid();
+      });
+    });
+
+    // Vis mere / vis færre
+    document.getElementById('elevator-show-more').addEventListener('click', function () {
+      elevatorShowCount += ELEVATORS_PER_PAGE;
+      renderElevatorGrid();
+      const cards = document.querySelectorAll('#elevator-grid .elevator-card');
+      if (cards[elevatorShowCount - ELEVATORS_PER_PAGE]) {
+        cards[elevatorShowCount - ELEVATORS_PER_PAGE].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+
+    document.getElementById('elevator-show-less').addEventListener('click', function () {
+      elevatorShowCount = ELEVATORS_PER_PAGE;
+      renderElevatorGrid();
+      document.getElementById('elevator-heading').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    // KONE API auto-sync
+    if (typeof startKoneAutoSync === 'function') {
+      startKoneAutoSync(5);
+    }
+
+    /* ==============================================
+       PLANLAGT VEDLIGEHOLD FRA GOOGLE CALENDAR
+    ============================================== */
+    async function loadPlannedMaintenance() {
+      const list     = document.getElementById('planned-maintenance-list');
+      const statusEl = document.getElementById('gcal-sync-status-front');
+
+      if (typeof gcalIsLoggedIn !== 'function' || !gcalIsLoggedIn()) return;
+
+      try {
+        statusEl.textContent = '🔄 Henter...';
+        const checks = await fetchRoutineChecks();
+        const now    = new Date().toISOString().split('T')[0];
+        const upcoming = (checks || []).filter(c => {
+          const d = c.date || (c.start && (c.start.dateTime || c.start.date)) || '';
+          return d.slice(0, 10) >= now;
+        });
+
+        const time = new Date().toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' });
+        statusEl.textContent = '✅ Opdateret ' + time;
+        statusEl.style.color = 'var(--color-success)';
+
+        if (upcoming.length === 0) {
+          list.innerHTML = '<div class="planned-maintenance-empty">✅ Ingen planlagte vedligeholdstjek de næste 3 måneder.</div>';
+          return;
+        }
+
+        list.innerHTML = upcoming.map(c => {
+          const rawDate = c.date || (c.start && (c.start.dateTime || c.start.date)) || '';
+          const d       = new Date(rawDate);
+          const dateStr = d.toLocaleDateString('da-DK', { weekday: 'long', day: 'numeric', month: 'long' });
+          const timeStr = rawDate.includes('T') ? d.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' }) : null;
+          const titleClean = (c.title || '').replace('🔧 Rutine-tjek – ', '').replace('🔴 Elevator nede – ', '');
+          const elev    = elevatorData.find(e => e.id === c.station || e.station === titleClean);
+          const station = elev ? elev.station : titleClean;
+          const location = elev ? elev.location : '';
+          return `
+            <div class="planned-maintenance-card" role="note">
+              <div class="planned-maintenance-icon">🔧</div>
+              <div class="planned-maintenance-info">
+                <strong>${station}</strong>
+                ${location ? `<span>${location}</span>` : ''}
+                <span>📅 ${dateStr}${timeStr ? ' kl. ' + timeStr : ''}</span>
+                ${c.note ? `<span class="planned-note">${c.note}</span>` : ''}
+                <span class="planned-disclaimer">⚠️ Elevatoren kan være midlertidigt ude af drift under vedligehold.</span>
+              </div>
+            </div>`;
+        }).join('');
+
+      } catch (err) {
+        statusEl.textContent = '❌ Fejl';
+        statusEl.style.color = 'var(--color-danger)';
+        list.innerHTML = '<div class="planned-maintenance-empty">❌ Kunne ikke hente kalenderdata: ' + err.message + '</div>';
+      }
+    }
+  </script>
+
+  <!-- AI CHATBOT - Qwen 7B via Ollama -->
+  <script src="chatbot.js"></script>
+
+</body>
+</html>
